@@ -20,19 +20,62 @@
     .pagination button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
     .pagination button:disabled { opacity: .35; cursor: default; }
     .pagination .page-info { font-size: .82rem; color: var(--grey-500); }
-    .export-btn { margin-top: 0; }
+
+    /* View Toggle */
+    .view-toggle {
+      display: flex; gap: 4px;
+      background: rgba(13,27,42,.6);
+      border: 1px solid rgba(196,204,216,.12);
+      border-radius: 10px; padding: 4px;
+    }
+    .view-toggle button {
+      padding: 7px 16px; font-size: .8rem; font-weight: 600;
+      border: none; border-radius: 7px; cursor: pointer;
+      transition: all .2s; background: transparent; color: var(--grey-500);
+      font-family: var(--font-body);
+    }
+    .view-toggle button.active { background: rgba(201,168,76,.18); color: var(--gold); }
+    .view-toggle button:hover:not(.active) { color: var(--grey-300); }
+
+    /* Kiosk View Panel */
+    #kiosk-view {
+      display: none;
+      min-height: calc(100vh - 72px);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 20px; padding: 40px 16px;
+    }
+    #kiosk-view.active { display: flex; }
+    #admin-view.hidden { display: none; }
+
+    .kiosk-last-log {
+      background: rgba(13,27,42,.5);
+      border: 1px solid rgba(196,204,216,.12);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px; text-align: center; margin-top: 12px;
+    }
+    .kiosk-last-log span { font-size: .78rem; color: var(--grey-500); display: block; }
+    .kiosk-last-log strong { font-size: .9rem; color: var(--grey-300); }
+
+    .user-result-item {
+      padding: 12px 16px; cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      transition: background .15s; font-size: .88rem;
+    }
+    .user-result-item:hover { background: rgba(201,168,76,.08); }
+    .user-result-item:last-child { border-bottom: none; }
   </style>
 </head>
 <body>
   <div class="bg-texture"></div>
 
   <div class="admin-layout">
-    <!-- Header -->
+
+    <!-- ── Header ── -->
     <header class="admin-header">
       <div class="admin-header-left">
         <div class="crest-icon" style="width:42px;height:42px;font-size:18px;flex-shrink:0;">📚</div>
         <div>
-          <div class="admin-title">NEU Library Admin</div>
+          <div class="admin-title">NEU Library</div>
           <div style="font-size:.72rem; color:var(--grey-500); margin-top:1px;" id="admin-email">—</div>
         </div>
       </div>
@@ -41,15 +84,19 @@
           <span class="dot"></span>
           <span id="live-clock">—</span>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="window.location.href='dashboard.html'">Kiosk View</button>
+        <div class="view-toggle">
+          <button id="btn-admin-view" class="active" onclick="switchView('admin')">📊 Admin</button>
+          <button id="btn-kiosk-view" onclick="switchView('kiosk')">🖥 Kiosk</button>
+        </div>
         <button class="btn btn-danger btn-sm" onclick="signOut()">Sign Out</button>
       </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="admin-main">
+    <!-- ══════════════════════════════════════ -->
+    <!-- ADMIN VIEW                             -->
+    <!-- ══════════════════════════════════════ -->
+    <main class="admin-main" id="admin-view">
 
-      <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value" id="stat-total">—</div>
@@ -69,7 +116,6 @@
         </div>
       </div>
 
-      <!-- Filters -->
       <div class="filters-row">
         <input type="text" class="filter-input" id="search-name" placeholder="🔍 Search by name or ID…" oninput="applyFilters()" />
         <input type="date" class="filter-input" id="filter-date" onchange="applyFilters()" style="max-width:180px;" />
@@ -78,20 +124,15 @@
           <option value="Student">Student</option>
           <option value="Staff">Staff</option>
         </select>
-        <button class="btn btn-outline btn-sm export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
         <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↻ Refresh</button>
       </div>
 
-      <!-- Table -->
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Full Name</th>
-              <th>Student / ID</th>
-              <th>Role</th>
-              <th>Time In</th>
+              <th>#</th><th>Full Name</th><th>Student / ID</th><th>Role</th><th>Time In</th>
             </tr>
           </thead>
           <tbody id="logs-tbody">
@@ -100,7 +141,6 @@
         </table>
       </div>
 
-      <!-- Pagination -->
       <div class="pagination">
         <button id="prev-btn" onclick="changePage(-1)" disabled>‹ Prev</button>
         <span class="page-info" id="page-info">Page 1</span>
@@ -108,132 +148,305 @@
       </div>
 
     </main>
-  </div>
 
-  <!-- Supabase CDN -->
+    <!-- ══════════════════════════════════════ -->
+    <!-- KIOSK VIEW                             -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="kiosk-view">
+
+      <div class="info-chip">
+        <span class="dot"></span>
+        Library Visitor Kiosk — Admin Mode
+      </div>
+
+      <div class="time-display">
+        <p class="clock" id="kiosk-clock">—</p>
+      </div>
+
+      <div style="text-align:center;">
+        <h1 class="welcome-name" id="kiosk-admin-name">Welcome!</h1>
+        <span class="role-badge">Admin</span>
+      </div>
+
+      <div class="card" style="max-width:500px; padding:36px 30px;">
+
+        <!-- Search & Time In Any User -->
+        <p class="section-label" style="text-align:center; margin-bottom:16px;">Log a Visitor</p>
+
+        <div class="form-group">
+          <label for="kiosk-search">Search by Name or Student ID</label>
+          <input type="text" id="kiosk-search"
+            placeholder="e.g. 22-12345-678 or Juan Dela Cruz"
+            oninput="debounceSearch()" autocomplete="off" />
+        </div>
+
+        <!-- Dropdown results -->
+        <div id="kiosk-results" style="display:none; margin-bottom:16px;
+          background:rgba(13,27,42,.9); border:1px solid rgba(196,204,216,.15);
+          border-radius:8px; overflow:hidden; max-height:220px; overflow-y:auto;"></div>
+
+        <!-- Selected user card -->
+        <div id="kiosk-selected" style="display:none; margin-bottom:18px;
+          background:rgba(201,168,76,.08); border:1px solid rgba(201,168,76,.2);
+          border-radius:10px; padding:14px 16px;">
+          <div style="font-size:.72rem; color:var(--gold); text-transform:uppercase;
+            letter-spacing:.1em; margin-bottom:6px;">Selected User</div>
+          <div style="font-weight:600; color:var(--white); font-size:1rem;" id="kiosk-sel-name">—</div>
+          <div style="font-size:.82rem; color:var(--grey-400); margin-top:4px;">
+            <span id="kiosk-sel-id">—</span> &nbsp;·&nbsp; <span id="kiosk-sel-role">—</span>
+          </div>
+        </div>
+
+        <button class="btn btn-gold" id="kiosk-btn" onclick="kioskTimeIn()" disabled
+          style="padding:14px; font-size:1rem; margin-bottom:6px;">
+          ⏱ Time In Selected User
+        </button>
+
+        <div class="kiosk-last-log" id="kiosk-last-log" style="display:none;">
+          <span>Last Recorded</span>
+          <strong id="kiosk-last-val">—</strong>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Admin own time in -->
+        <p style="text-align:center; font-size:.8rem; color:var(--grey-500); margin-bottom:12px;">
+          Log your own visit as admin
+        </p>
+        <button class="btn btn-outline" id="admin-timein-btn" onclick="adminTimeIn()"
+          style="padding:11px; font-size:.88rem;">
+          ⏱ Time In as Admin
+        </button>
+
+      </div>
+    </div>
+
+  </div><!-- /admin-layout -->
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
   <script src="app.js"></script>
   <script>
     const PAGE_SIZE = 20;
-    let allLogs = [];
-    let filteredLogs = [];
-    let currentPage = 1;
+    let allLogs = [], filteredLogs = [], currentPage = 1;
+    let adminSession = null, selectedUser = null, searchTimer = null;
 
+    // ── Init ─────────────────────────────────────────────────
     (async () => {
+      await new Promise(r => setTimeout(r, 500));
       const session = await requireAuth();
       if (!session) return;
-
       if (!ADMIN_EMAILS.includes(session.user.email)) {
         window.location.href = 'dashboard.html'; return;
       }
-
+      adminSession = session;
       document.getElementById('admin-email').textContent = session.user.email;
+      document.getElementById('kiosk-admin-name').textContent =
+        'Admin: ' + (session.user.user_metadata?.full_name || session.user.email.split('@')[0]);
       startClock('live-clock');
+      startClock('kiosk-clock');
       await loadLogs();
     })();
 
+    // ── View Switch ──────────────────────────────────────────
+    function switchView(v) {
+      document.getElementById('admin-view').classList.toggle('hidden', v === 'kiosk');
+      document.getElementById('kiosk-view').classList.toggle('active', v === 'kiosk');
+      document.getElementById('btn-admin-view').classList.toggle('active', v === 'admin');
+      document.getElementById('btn-kiosk-view').classList.toggle('active', v === 'kiosk');
+      if (v === 'admin') loadLogs();
+    }
+
+    // ── Logs ─────────────────────────────────────────────────
     async function loadLogs() {
       const { data, error } = await supabaseClient
-        .from('logs')
-        .select('*')
-        .order('timestamp', { ascending: false });
-
-      if (error) { showToast('Error loading logs: ' + error.message, 'error'); return; }
+        .from('logs').select('*').order('timestamp', { ascending: false });
+      if (error) { showToast('Error: ' + error.message, 'error'); return; }
       allLogs = data || [];
-      updateStats();
-      applyFilters();
+      updateStats(); applyFilters();
     }
 
     function updateStats() {
       const today = new Date().toISOString().slice(0, 10);
-      const todayLogs = allLogs.filter(l => l.timestamp && l.timestamp.slice(0, 10) === today);
-      document.getElementById('stat-total').textContent    = todayLogs.length;
-      document.getElementById('stat-students').textContent = todayLogs.filter(l => l.role === 'Student').length;
-      document.getElementById('stat-staff').textContent    = todayLogs.filter(l => l.role === 'Staff').length;
+      const t = allLogs.filter(l => l.timestamp?.slice(0, 10) === today);
+      document.getElementById('stat-total').textContent    = t.length;
+      document.getElementById('stat-students').textContent = t.filter(l => l.role === 'Student').length;
+      document.getElementById('stat-staff').textContent    = t.filter(l => l.role === 'Staff').length;
       document.getElementById('stat-all').textContent      = allLogs.length;
     }
 
     function applyFilters() {
-      const search = document.getElementById('search-name').value.toLowerCase();
-      const date   = document.getElementById('filter-date').value;
-      const role   = document.getElementById('filter-role').value;
-
-      filteredLogs = allLogs.filter(l => {
-        const matchName = !search ||
-          (l.full_name && l.full_name.toLowerCase().includes(search)) ||
-          (l.student_id && l.student_id.toLowerCase().includes(search));
-        const matchDate = !date || (l.timestamp && l.timestamp.slice(0, 10) === date);
-        const matchRole = !role || l.role === role;
-        return matchName && matchDate && matchRole;
-      });
-
-      currentPage = 1;
-      renderTable();
+      const s = document.getElementById('search-name').value.toLowerCase();
+      const d = document.getElementById('filter-date').value;
+      const r = document.getElementById('filter-role').value;
+      filteredLogs = allLogs.filter(l =>
+        (!s || l.full_name?.toLowerCase().includes(s) || l.student_id?.toLowerCase().includes(s)) &&
+        (!d || l.timestamp?.slice(0, 10) === d) &&
+        (!r || l.role === r)
+      );
+      currentPage = 1; renderTable();
     }
 
     function renderTable() {
       const tbody = document.getElementById('logs-tbody');
       const start = (currentPage - 1) * PAGE_SIZE;
-      const end   = start + PAGE_SIZE;
-      const page  = filteredLogs.slice(start, end);
+      const page  = filteredLogs.slice(start, start + PAGE_SIZE);
       const total = filteredLogs.length;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-      document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages} (${total} records)`;
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      document.getElementById('page-info').textContent = `Page ${currentPage} of ${pages} (${total} records)`;
       document.getElementById('prev-btn').disabled = currentPage <= 1;
-      document.getElementById('next-btn').disabled = currentPage >= totalPages;
-
+      document.getElementById('next-btn').disabled = currentPage >= pages;
       if (!page.length) {
         tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><span>📭</span>No records found.</div></td></tr>`;
         return;
       }
-
-      tbody.innerHTML = page.map((log, i) => `
+      tbody.innerHTML = page.map((l, i) => `
         <tr>
-          <td style="color:var(--grey-500)">${start + i + 1}</td>
-          <td><strong>${esc(log.full_name)}</strong></td>
-          <td style="font-family:monospace; font-size:.85rem;">${esc(log.student_id)}</td>
-          <td><span class="badge badge-${log.role === 'Student' ? 'student' : 'staff'}">${esc(log.role)}</span></td>
-          <td>${log.timestamp ? new Date(log.timestamp).toLocaleString('en-PH') : '—'}</td>
-        </tr>
-      `).join('');
+          <td style="color:var(--grey-500)">${start+i+1}</td>
+          <td><strong>${esc(l.full_name)}</strong></td>
+          <td style="font-family:monospace;font-size:.85rem;">${esc(l.student_id)}</td>
+          <td><span class="badge badge-${l.role==='Student'?'student':'staff'}">${esc(l.role)}</span></td>
+          <td>${l.timestamp ? new Date(l.timestamp).toLocaleString('en-PH') : '—'}</td>
+        </tr>`).join('');
     }
 
-    function changePage(dir) {
-      const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
-      currentPage = Math.min(Math.max(1, currentPage + dir), totalPages);
+    function changePage(d) {
+      const pages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+      currentPage = Math.min(Math.max(1, currentPage + d), pages);
       renderTable();
     }
 
     function exportCSV() {
       if (!filteredLogs.length) { showToast('No data to export.', 'info'); return; }
-      const header = ['#', 'Full Name', 'Student/Employee ID', 'Role', 'Timestamp'];
       const rows = filteredLogs.map((l, i) => [
-        i + 1,
-        `"${(l.full_name || '').replace(/"/g, '""')}"`,
-        l.student_id || '',
-        l.role || '',
+        i+1, `"${(l.full_name||'').replace(/"/g,'""')}"`,
+        l.student_id||'', l.role||'',
         l.timestamp ? new Date(l.timestamp).toLocaleString('en-PH') : ''
       ]);
-      const csv = [header, ...rows].map(r => r.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url;
-      a.download = `NEU_Library_Logs_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click(); URL.revokeObjectURL(url);
-      showToast('CSV exported successfully!', 'success');
+      const csv = [['#','Full Name','Student/ID','Role','Timestamp'], ...rows].map(r=>r.join(',')).join('\n');
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})),
+        download: `NEU_Logs_${new Date().toISOString().slice(0,10)}.csv`
+      });
+      a.click(); showToast('CSV exported!', 'success');
     }
 
+    // ── Kiosk: Search ────────────────────────────────────────
+    function debounceSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(doSearch, 300);
+    }
+
+    async function doSearch() {
+      const q = document.getElementById('kiosk-search').value.trim();
+      const el = document.getElementById('kiosk-results');
+      if (q.length < 2) { el.style.display = 'none'; clearSelected(); return; }
+
+      const { data } = await supabaseClient.from('users').select('id,full_name,student_id,role')
+        .or(`full_name.ilike.%${q}%,student_id.ilike.%${q}%`).limit(8);
+
+      if (!data?.length) {
+        el.innerHTML = `<div style="padding:14px;color:var(--grey-500);text-align:center;font-size:.85rem;">No users found</div>`;
+      } else {
+        el.innerHTML = data.map(u => `
+          <div class="user-result-item" onclick='pickUser(${JSON.stringify(u)})'>
+            <strong style="color:var(--white);">${esc(u.full_name)}</strong>
+            <span style="color:var(--grey-500);margin-left:8px;font-size:.82rem;">${esc(u.student_id)}</span>
+            <span class="badge badge-${u.role==='Student'?'student':'staff'}" style="margin-left:6px;">${u.role}</span>
+          </div>`).join('');
+      }
+      el.style.display = 'block';
+    }
+
+    function pickUser(u) {
+      selectedUser = u;
+      document.getElementById('kiosk-search').value = u.full_name;
+      document.getElementById('kiosk-results').style.display = 'none';
+      document.getElementById('kiosk-sel-name').textContent = u.full_name;
+      document.getElementById('kiosk-sel-id').textContent   = u.student_id;
+      document.getElementById('kiosk-sel-role').textContent = u.role;
+      document.getElementById('kiosk-selected').style.display = 'block';
+      document.getElementById('kiosk-btn').disabled = false;
+    }
+
+    function clearSelected() {
+      selectedUser = null;
+      document.getElementById('kiosk-selected').style.display = 'none';
+      document.getElementById('kiosk-btn').disabled = true;
+    }
+
+    // ── Kiosk: Time In Selected User ─────────────────────────
+    async function kioskTimeIn() {
+      if (!selectedUser) return;
+      const btn = document.getElementById('kiosk-btn');
+      btn.disabled = true; showLoader(true);
+
+      const { data: recent } = await supabaseClient.from('logs').select('timestamp')
+        .eq('user_id', selectedUser.id).order('timestamp',{ascending:false}).limit(1).single();
+
+      if (recent) {
+        const mins = (Date.now() - new Date(recent.timestamp)) / 60000;
+        if (mins < 10) {
+          showLoader(false); btn.disabled = false;
+          showToast(`${selectedUser.full_name} already timed in ${Math.floor(mins)} min ago.`, 'info');
+          return;
+        }
+      }
+
+      const { error } = await supabaseClient.from('logs').insert({
+        user_id: selectedUser.id, full_name: selectedUser.full_name,
+        student_id: selectedUser.student_id, role: selectedUser.role
+      });
+      showLoader(false); btn.disabled = false;
+
+      if (error) { showToast('Failed: ' + error.message, 'error'); return; }
+
+      showToast(`✓ Time In recorded for ${selectedUser.full_name}!`, 'success');
+      const ll = document.getElementById('kiosk-last-log');
+      ll.style.display = 'block';
+      document.getElementById('kiosk-last-val').textContent =
+        `${selectedUser.full_name} — ${new Date().toLocaleString('en-PH')}`;
+      document.getElementById('kiosk-search').value = '';
+      clearSelected();
+    }
+
+    // ── Kiosk: Admin Own Time In ─────────────────────────────
+    async function adminTimeIn() {
+      if (!adminSession) return;
+      const btn = document.getElementById('admin-timein-btn');
+      btn.disabled = true; showLoader(true);
+
+      let { data: adminUser } = await supabaseClient.from('users')
+        .select('*').eq('id', adminSession.user.id).single();
+
+      if (!adminUser) {
+        const { data: nu, error: ie } = await supabaseClient.from('users').insert({
+          id: adminSession.user.id, email: adminSession.user.email,
+          student_id: 'ADMIN', role: 'Staff', department: 'Administration',
+          full_name: adminSession.user.user_metadata?.full_name || adminSession.user.email.split('@')[0]
+        }).select().single();
+        if (ie) { showLoader(false); btn.disabled=false; showToast('Error: '+ie.message,'error'); return; }
+        adminUser = nu;
+      }
+
+      const { error } = await supabaseClient.from('logs').insert({
+        user_id: adminUser.id, full_name: adminUser.full_name,
+        student_id: adminUser.student_id, role: adminUser.role
+      });
+      showLoader(false); btn.disabled = false;
+      if (error) showToast('Failed: ' + error.message, 'error');
+      else showToast('✓ Your visit has been logged!', 'success');
+    }
+
+    // ── Sign Out ──────────────────────────────────────────────
     async function signOut() {
       showLoader(true);
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
 
-    function esc(str) {
-      if (!str) return '—';
-      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    function esc(s) {
+      return (s||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
   </script>
 </body>
