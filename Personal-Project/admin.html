@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — NEU Library</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .pagination {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-top: 16px;
+    }
+    .pagination button {
+      padding: 7px 16px; font-size: .82rem;
+      background: rgba(22,40,64,.7);
+      border: 1px solid rgba(196,204,216,.15);
+      border-radius: 6px; color: var(--grey-300); cursor: pointer;
+      transition: all .2s;
+    }
+    .pagination button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+    .pagination button:disabled { opacity: .35; cursor: default; }
+    .pagination .page-info { font-size: .82rem; color: var(--grey-500); }
+    .export-btn { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="bg-texture"></div>
+
+  <div class="admin-layout">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="admin-header-left">
+        <div class="crest-icon" style="width:42px;height:42px;font-size:18px;flex-shrink:0;">📚</div>
+        <div>
+          <div class="admin-title">NEU Library Admin</div>
+          <div style="font-size:.72rem; color:var(--grey-500); margin-top:1px;" id="admin-email">—</div>
+        </div>
+      </div>
+      <div class="admin-header-right">
+        <div class="info-chip" style="font-size:.75rem;">
+          <span class="dot"></span>
+          <span id="live-clock">—</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="window.location.href='dashboard.html'">Kiosk View</button>
+        <button class="btn btn-danger btn-sm" onclick="signOut()">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-label">Total Visits Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-students">—</div>
+          <div class="stat-label">Students Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-staff">—</div>
+          <div class="stat-label">Staff Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-all">—</div>
+          <div class="stat-label">All Time Visits</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters-row">
+        <input type="text" class="filter-input" id="search-name" placeholder="🔍 Search by name or ID…" oninput="applyFilters()" />
+        <input type="date" class="filter-input" id="filter-date" onchange="applyFilters()" style="max-width:180px;" />
+        <select class="filter-input" id="filter-role" onchange="applyFilters()" style="max-width:160px;">
+          <option value="">All Roles</option>
+          <option value="Student">Student</option>
+          <option value="Staff">Staff</option>
+        </select>
+        <button class="btn btn-outline btn-sm export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↻ Refresh</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Full Name</th>
+              <th>Student / ID</th>
+              <th>Role</th>
+              <th>Time In</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr><td colspan="5"><div class="empty-state"><span>⏳</span>Loading logs…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <button id="prev-btn" onclick="changePage(-1)" disabled>‹ Prev</button>
+        <span class="page-info" id="page-info">Page 1</span>
+        <button id="next-btn" onclick="changePage(1)">Next ›</button>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const PAGE_SIZE = 20;
+    let allLogs = [];
+    let filteredLogs = [];
+    let currentPage = 1;
+
+    (async () => {
+      const session = await requireAuth();
+      if (!session) return;
+
+      if (!ADMIN_EMAILS.includes(session.user.email)) {
+        window.location.href = 'dashboard.html'; return;
+      }
+
+      document.getElementById('admin-email').textContent = session.user.email;
+      startClock('live-clock');
+      await loadLogs();
+    })();
+
+    async function loadLogs() {
+      const { data, error } = await supabaseClient
+        .from('logs')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (error) { showToast('Error loading logs: ' + error.message, 'error'); return; }
+      allLogs = data || [];
+      updateStats();
+      applyFilters();
+    }
+
+    function updateStats() {
+      const today = new Date().toISOString().slice(0, 10);
+      const todayLogs = allLogs.filter(l => l.timestamp && l.timestamp.slice(0, 10) === today);
+      document.getElementById('stat-total').textContent    = todayLogs.length;
+      document.getElementById('stat-students').textContent = todayLogs.filter(l => l.role === 'Student').length;
+      document.getElementById('stat-staff').textContent    = todayLogs.filter(l => l.role === 'Staff').length;
+      document.getElementById('stat-all').textContent      = allLogs.length;
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('search-name').value.toLowerCase();
+      const date   = document.getElementById('filter-date').value;
+      const role   = document.getElementById('filter-role').value;
+
+      filteredLogs = allLogs.filter(l => {
+        const matchName = !search ||
+          (l.full_name && l.full_name.toLowerCase().includes(search)) ||
+          (l.student_id && l.student_id.toLowerCase().includes(search));
+        const matchDate = !date || (l.timestamp && l.timestamp.slice(0, 10) === date);
+        const matchRole = !role || l.role === role;
+        return matchName && matchDate && matchRole;
+      });
+
+      currentPage = 1;
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('logs-tbody');
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const end   = start + PAGE_SIZE;
+      const page  = filteredLogs.slice(start, end);
+      const total = filteredLogs.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+      document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages} (${total} records)`;
+      document.getElementById('prev-btn').disabled = currentPage <= 1;
+      document.getElementById('next-btn').disabled = currentPage >= totalPages;
+
+      if (!page.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><span>📭</span>No records found.</div></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = page.map((log, i) => `
+        <tr>
+          <td style="color:var(--grey-500)">${start + i + 1}</td>
+          <td><strong>${esc(log.full_name)}</strong></td>
+          <td style="font-family:monospace; font-size:.85rem;">${esc(log.student_id)}</td>
+          <td><span class="badge badge-${log.role === 'Student' ? 'student' : 'staff'}">${esc(log.role)}</span></td>
+          <td>${log.timestamp ? new Date(log.timestamp).toLocaleString('en-PH') : '—'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function changePage(dir) {
+      const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+      currentPage = Math.min(Math.max(1, currentPage + dir), totalPages);
+      renderTable();
+    }
+
+    function exportCSV() {
+      if (!filteredLogs.length) { showToast('No data to export.', 'info'); return; }
+      const header = ['#', 'Full Name', 'Student/Employee ID', 'Role', 'Timestamp'];
+      const rows = filteredLogs.map((l, i) => [
+        i + 1,
+        `"${(l.full_name || '').replace(/"/g, '""')}"`,
+        l.student_id || '',
+        l.role || '',
+        l.timestamp ? new Date(l.timestamp).toLocaleString('en-PH') : ''
+      ]);
+      const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `NEU_Library_Logs_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click(); URL.revokeObjectURL(url);
+      showToast('CSV exported successfully!', 'success');
+    }
+
+    async function signOut() {
+      showLoader(true);
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    }
+
+    function esc(str) {
+      if (!str) return '—';
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+  </script>
+</body>
+</html>

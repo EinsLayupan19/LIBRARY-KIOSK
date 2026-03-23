@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — NEU Library</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-texture"></div>
+
+  <main class="page-center">
+    <div class="card">
+
+      <div class="crest">
+        <div class="crest-icon">📚</div>
+        <span class="crest-label">New Era University</span>
+      </div>
+
+      <h1 class="page-title">Sign In</h1>
+      <p class="page-subtitle">Login using your institutional email to access the library visitor log system.</p>
+
+      <div class="error-banner" id="err-banner">
+        Only institutional email addresses (<strong>@neu.edu.ph</strong>) are allowed.
+      </div>
+
+      <button class="btn btn-google" id="google-btn" onclick="signInGoogle()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+        Sign in with Google
+      </button>
+
+      <div class="divider"></div>
+
+      <p style="text-align:center; font-size:.8rem; color:var(--grey-500);">
+        Use your <strong style="color:var(--grey-300);">@neu.edu.ph</strong> account only.<br>
+        Personal Gmail accounts will be rejected.
+      </p>
+
+      <div style="text-align:center; margin-top:20px;">
+        <a href="index.html" style="font-size:.8rem; color:var(--grey-500); text-decoration:none;">← Back to Welcome</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Show domain error if redirected back with ?error=domain
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'domain') {
+      document.getElementById('err-banner').classList.add('show');
+    }
+
+    async function signInGoogle() {
+      showLoader(true);
+      const btn = document.getElementById('google-btn');
+      btn.disabled = true;
+
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/login.html'
+        }
+      });
+      if (error) {
+        showLoader(false);
+        btn.disabled = false;
+        showToast(error.message, 'error');
+      }
+      // On success, Supabase redirects back; handled by onAuthStateChange below
+    }
+
+    // Handle redirect from OAuth
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        showLoader(true);
+        const email = session.user.email;
+
+        // Validate domain
+        if (!email.endsWith('@neu.edu.ph')) {
+          await supabaseClient.auth.signOut();
+          showLoader(false);
+          document.getElementById('err-banner').classList.add('show');
+          showToast('Only @neu.edu.ph emails are allowed.', 'error');
+          return;
+        }
+
+        // Admin redirect
+        if (ADMIN_EMAILS.includes(email)) {
+          window.location.href = 'admin.html';
+          return;
+        }
+
+        // Check if user exists
+        await checkUserAndRoute(session);
+      }
+    });
+  </script>
+</body>
+</html>

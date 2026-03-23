@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — NEU Library</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .last-log {
+      background: rgba(13,27,42,.5);
+      border: 1px solid rgba(196,204,216,.12);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px; text-align: center; margin-top: 12px;
+    }
+    .last-log span { font-size: .78rem; color: var(--grey-500); display: block; }
+    .last-log strong { font-size: .9rem; color: var(--grey-300); }
+  </style>
+</head>
+<body>
+  <div class="bg-texture"></div>
+
+  <main class="dashboard-wrap">
+
+    <div class="info-chip">
+      <span class="dot"></span>
+      Library Visitor Kiosk
+    </div>
+
+    <div class="time-display">
+      <p class="clock" id="clock">—</p>
+    </div>
+
+    <div id="user-info" style="text-align:center;">
+      <h1 class="welcome-name" id="welcome-name">Welcome!</h1>
+      <div style="margin-top:10px;">
+        <span class="role-badge" id="role-badge">—</span>
+        &nbsp;
+        <span style="font-size:.8rem; color:var(--grey-500);" id="id-display">—</span>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:420px; text-align:center; padding:36px 30px;">
+      <p style="font-size:.88rem; color:var(--grey-500); margin-bottom:24px;">
+        Press the button below to record your library visit.
+      </p>
+
+      <button class="btn btn-gold timein-btn" id="timein-btn" onclick="timeIn()">
+        <span>⏱</span> Time In
+      </button>
+
+      <div class="last-log" id="last-log" style="display:none;">
+        <span>Last Time In</span>
+        <strong id="last-log-val">—</strong>
+      </div>
+
+      <div style="margin-top:20px">
+        <button class="btn btn-ghost btn-sm" onclick="signOut()">Sign Out</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let userData = null;
+    const COOLDOWN_MINUTES = 10; // prevent duplicate time-in within N minutes
+
+    (async () => {
+      const session = await requireAuth();
+      if (!session) return;
+
+      // Admin guard — admins go to admin panel
+      if (ADMIN_EMAILS.includes(session.user.email)) {
+        window.location.href = 'admin.html'; return;
+      }
+
+      // Fetch user profile
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error || !data) {
+        window.location.href = 'register.html'; return;
+      }
+
+      userData = data;
+      document.getElementById('welcome-name').textContent = `Welcome, ${data.full_name.split(' ')[0]}!`;
+      document.getElementById('role-badge').textContent = data.role;
+      document.getElementById('id-display').textContent = data.student_id;
+
+      // Load last time-in
+      loadLastLog();
+      startClock('clock');
+    })();
+
+    async function loadLastLog() {
+      const { data } = await supabaseClient
+        .from('logs')
+        .select('timestamp')
+        .eq('user_id', userData.id)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data) {
+        const el = document.getElementById('last-log');
+        el.style.display = 'block';
+        document.getElementById('last-log-val').textContent =
+          new Date(data.timestamp).toLocaleString('en-PH');
+      }
+    }
+
+    async function timeIn() {
+      const btn = document.getElementById('timein-btn');
+      btn.disabled = true;
+      showLoader(true);
+
+      // Duplicate check: last time-in within COOLDOWN_MINUTES
+      const { data: recent } = await supabaseClient
+        .from('logs')
+        .select('timestamp')
+        .eq('user_id', userData.id)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (recent) {
+        const lastTs = new Date(recent.timestamp);
+        const diffMins = (Date.now() - lastTs.getTime()) / 60000;
+        if (diffMins < COOLDOWN_MINUTES) {
+          showLoader(false);
+          btn.disabled = false;
+          showToast(`You already timed in ${Math.floor(diffMins)} min ago. Please wait ${COOLDOWN_MINUTES} min.`, 'info');
+          return;
+        }
+      }
+
+      const { error } = await supabaseClient.from('logs').insert({
+        user_id:    userData.id,
+        full_name:  userData.full_name,
+        student_id: userData.student_id,
+        role:       userData.role
+      });
+
+      showLoader(false);
+      btn.disabled = false;
+
+      if (error) {
+        showToast('Failed to log time in: ' + error.message, 'error');
+      } else {
+        showToast(`Time In recorded for ${userData.full_name}! ✓`, 'success');
+        loadLastLog();
+      }
+    }
+
+    async function signOut() {
+      showLoader(true);
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>

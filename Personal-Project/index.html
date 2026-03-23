@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEU Library — Visitor Log</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-texture"></div>
+
+  <div class="deco-lines">
+    <span></span><span></span><span></span><span></span>
+  </div>
+
+  <main class="welcome-wrap">
+    <p class="welcome-eyebrow">New Era University · Visitor Management</p>
+
+    <h1 class="welcome-title">Welcome to<br>NEU Library</h1>
+
+    <p class="welcome-sub">
+      Track your library visits seamlessly using your institutional account.
+      Log your time in and stay connected with your academic community.
+    </p>
+
+    <a href="login.html" class="btn btn-gold welcome-btn" style="text-decoration:none; max-width:240px;">
+      <span>📚</span> Enter Library
+    </a>
+
+    <p style="margin-top:28px; font-size:.78rem; color:var(--grey-500);">
+      Authorized NEU personnel &amp; students only
+    </p>
+  </main>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // If already logged in and valid, redirect appropriately
+    (async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session && session.user.email.endsWith('@neu.edu.ph')) {
+        if (ADMIN_EMAILS.includes(session.user.email)) {
+          window.location.href = 'admin.html';
+        } else {
+          await checkUserAndRoute(session);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
