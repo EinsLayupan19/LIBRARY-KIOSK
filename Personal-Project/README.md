@@ -51,14 +51,14 @@ In Supabase → **Authentication → URL Configuration**:
 ### 6. Serve the App
 Use any local server, e.g.:
 ```bash
-# VS Code Live Server (recommended) — port 5500
+# VS Code Live Server (recommended) — port 3000
 # OR
 npx serve .
 # OR
-python -m http.server 5500
+python -m http.server 3000
 ```
 
-Then open: http://localhost:5500
+Then open:http://127.0.0.1:3000/index.html
 
 ---
 
