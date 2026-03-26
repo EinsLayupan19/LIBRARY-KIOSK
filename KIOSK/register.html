@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - NEU Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        .bg-overlay {
+            background: linear-gradient(rgba(10, 47, 108, 0.85), rgba(10, 47, 108, 0.85)), 
+                        url('https://smapse.com/storage/2020/05/converted/825_585_6-51.jpg') center/cover no-repeat;
+        }
+    </style>
+</head>
+<body class="bg-overlay min-h-screen flex items-center justify-center py-8">
+    <div class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl">
+        <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" class="h-16 mx-auto mb-4">
+        <h2 class="text-3xl font-bold text-blue-900 text-center mb-6">Complete Registration</h2>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Full Name</label>
+                <input type="text" id="fullName" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-400">
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Student ID (Optional)</label>
+                <input type="text" id="studentId" placeholder="00-00000-000" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-400">
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Department</label>
+                <select id="department" class="w-full border border-gray-300 rounded-lg px-4 py-2">
+                    <option value="CICS">CICS - Information & Computing Sciences</option>
+                    <option value="CAS">CAS - Arts & Sciences</option>
+                    <option value="CBA">CBA - Business & Accountancy</option>
+                    <option value="COE">COE - Engineering</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Role</label>
+                <div class="flex gap-6">
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="role" value="Student" checked class="mr-2"> Student
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="role" value="Staff" class="mr-2"> Staff/Faculty
+                    </label>
+                </div>
+            </div>
+            
+            <button id="registerBtn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-3 rounded-lg text-lg mt-4 transition">
+                ✅ Complete Registration
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDf05LxH-VNXsXTfMPGEDcPOO8HSJnNLjU",
+            authDomain: "neu-library-system-e7174.firebaseapp.com",
+            projectId: "neu-library-system-e7174",
+            storageBucket: "neu-library-system-e7174.firebasestorage.app",
+            messagingSenderId: "245837692302",
+            appId: "1:245837692302:web:bea8ac361ce19b186b38df"
+        };
+        
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // List of admin emails
+        const adminEmails = ['jcesperanza@neu.edu.ph', 'zirkeins.layupan@neu.edu.ph'];
+        
+        document.getElementById('registerBtn').onclick = async () => {
+            const user = auth.currentUser;
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            const fullName = document.getElementById('fullName').value;
+            if (!fullName) {
+                alert('Please enter your full name');
+                return;
+            }
+            
+            // Check if this email is an admin
+            const isAdmin = adminEmails.includes(user.email);
+            
+            const userData = {
+                fullName: fullName,
+                studentId: document.getElementById('studentId').value || 'N/A',
+                department: document.getElementById('department').value,
+                role: document.querySelector('input[name="role"]:checked').value,
+                email: user.email,
+                isAdmin: isAdmin,  // THIS IS THE KEY FIELD
+                registeredAt: new Date()
+            };
+            
+            await db.collection('users').doc(user.uid).set(userData);
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+            localStorage.setItem('isAdmin', isAdmin);
+            
+            const selectedRole = localStorage.getItem('userRole') || 'visitor';
+            
+            if (isAdmin && selectedRole === 'admin') {
+                window.location.href = 'admin.html';
+            } else {
+                window.location.href = 'kiosk.html';
+            }
+        };
+        
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
+</body>
+</html>

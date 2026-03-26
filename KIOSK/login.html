@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - NEU Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        .bg-overlay {
+            background: linear-gradient(rgba(10, 47, 108, 0.85), rgba(10, 47, 108, 0.85)), 
+                        url('https://smapse.com/storage/2020/05/converted/825_585_6-51.jpg') center/cover no-repeat;
+        }
+    </style>
+</head>
+<body class="bg-overlay min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" class="h-16 mx-auto mb-4">
+        <div class="text-center mb-6">
+            <h2 class="text-3xl font-bold text-blue-900">Welcome Back</h2>
+            <p class="text-gray-600 mt-2">Sign in to continue</p>
+        </div>
+        
+        <button id="googleBtn" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 rounded-lg flex items-center justify-center gap-3 transition">
+            <svg width="20" height="20" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
+        </button>
+        
+        <div id="errorMsg" class="mt-4 text-center text-red-500 text-sm hidden"></div>
+        <p class="text-xs text-gray-500 text-center mt-6">First time? You'll be prompted to register</p>
+    </div>
+    
+    <script>
+        // List of admin emails
+        const adminEmails = ['jcesperanza@neu.edu.ph', 'zirkeins.layupan@neu.edu.ph'];
+        
+        document.getElementById('googleBtn').onclick = async () => {
+            if (!firebase.apps.length) {
+                alert('Firebase not initialized. Please check configuration.');
+                return;
+            }
+            
+            const provider = new firebase.auth.GoogleAuthProvider();
+            try {
+                const result = await firebase.auth().signInWithPopup(provider);
+                const user = result.user;
+                const userEmail = user.email;
+                
+                // Check if user is admin
+                const isAdmin = adminEmails.includes(userEmail);
+                
+                // Store admin status
+                localStorage.setItem('isAdmin', isAdmin);
+                
+                // Check if user exists in Firestore
+                const db = firebase.firestore();
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                
+                if (!userDoc.exists) {
+                    // First time user - store email for registration
+                    localStorage.setItem('tempUserEmail', userEmail);
+                    localStorage.setItem('tempIsAdmin', isAdmin);
+                    window.location.href = 'register.html';
+                } else {
+                    // Existing user
+                    const userRole = localStorage.getItem('userRole') || 'visitor';
+                    
+                    // Admin can access both, but respect their choice
+                    if (isAdmin && userRole === 'admin') {
+                        window.location.href = 'admin.html';
+                    } else if (isAdmin && userRole === 'visitor') {
+                        window.location.href = 'kiosk.html';
+                    } else if (!isAdmin && userRole === 'admin') {
+                        alert('You do not have admin privileges.');
+                        window.location.href = 'choice.html';
+                    } else {
+                        window.location.href = 'kiosk.html';
+                    }
+                }
+            } catch (error) {
+                document.getElementById('errorMsg').textContent = 'Login failed: ' + error.message;
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        };
+        
+        // Check Firebase status
+        setTimeout(() => {
+            if (typeof firebase === 'undefined') {
+                document.getElementById('errorMsg').textContent = 'Firebase SDK not loaded';
+                document.getElementById('errorMsg').classList.remove('hidden');
+            } else if (!firebase.apps.length) {
+                document.getElementById('errorMsg').textContent = 'Firebase not initialized. Check configuration.';
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose Access</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bg-overlay {
+            background: linear-gradient(rgba(10, 47, 108, 0.9), rgba(10, 47, 108, 0.9)), 
+                        url('https://smapse.com/storage/2020/05/converted/825_585_6-51.jpg') center/cover no-repeat;
+        }
+    </style>
+</head>
+<body class="bg-overlay min-h-screen flex items-center justify-center">
+    <div class="bg-white/10 backdrop-blur-sm rounded-xl p-8 max-w-md w-full mx-4 border border-yellow-400/30">
+        <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" class="h-16 mx-auto mb-6">
+        <h2 class="text-3xl text-white text-center mb-6">Select Your Role</h2>
+        
+        <button onclick="selectRole('admin')" class="w-full bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-3 rounded-lg mb-4 text-lg transition">
+            🛡️ Admin Server
+        </button>
+        
+        <button onclick="selectRole('visitor')" class="w-full bg-white/20 hover:bg-white/30 text-white font-bold py-3 rounded-lg text-lg transition">
+            👤 Visitor
+        </button>
+    </div>
+    
+    <script>
+        function selectRole(role) {
+            localStorage.setItem('userRole', role);
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>

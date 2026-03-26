@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - NEU Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        .sidebar {
+            background: linear-gradient(180deg, #0A2F6C 0%, #06204A 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <div class="w-64 sidebar text-white flex flex-col shadow-xl">
+            <div class="p-6 border-b border-yellow-400/30 text-center">
+                <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" class="h-12 mx-auto mb-3">
+                <h2 class="text-xl font-bold text-yellow-400">NEU Library</h2>
+                <p class="text-xs text-white/70">Admin Dashboard</p>
+            </div>
+            <div class="flex-1 py-6">
+                <ul>
+                    <li class="px-6 py-3 bg-yellow-400/20 border-l-4 border-yellow-400 cursor-pointer" id="logsTab">
+                        <span class="font-semibold">📋 Visitor Logs</span>
+                    </li>
+                    <li class="px-6 py-3 text-white/70 hover:bg-white/10 transition cursor-pointer" id="usersTab">
+                        <span>👥 Registered Users</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="p-4 border-t border-yellow-400/30">
+                <button id="switchKioskBtn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-2 rounded-lg transition mb-2">
+                    🔄 Switch to Kiosk
+                </button>
+                <button id="logoutBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg transition">
+                    🚪 Sign Out
+                </button>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-x-auto">
+            <div class="flex justify-between items-center mb-8">
+                <h1 id="pageTitle" class="text-3xl font-bold text-blue-900">Visitor Check-In Logs</h1>
+                <input type="text" id="searchInput" placeholder="🔍 Search..." class="w-80 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+            </div>
+            
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <p class="text-gray-500">Today's Check-ins</p>
+                    <p id="todayCount" class="text-2xl font-bold text-blue-900">0</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <p class="text-gray-500">Total Visitors</p>
+                    <p id="totalCount" class="text-2xl font-bold text-blue-900">0</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <p class="text-gray-500">Registered Users</p>
+                    <p id="userCount" class="text-2xl font-bold text-blue-900">0</p>
+                </div>
+            </div>
+            
+            <!-- Table -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <table class="min-w-full">
+                    <thead class="bg-blue-900 text-white">
+                        <tr id="tableHeader">
+                            <th class="px-6 py-3 text-left">Time</th>
+                            <th class="px-6 py-3 text-left">Name</th>
+                            <th class="px-6 py-3 text-left">Reason/Department</th>
+                            <th class="px-6 py-3 text-left">Role</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        let currentView = 'logs';
+        let allLogs = [];
+        let allUsers = [];
+        
+        function formatDate(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            return date.toLocaleString();
+        }
+        
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayLogs = allLogs.filter(log => {
+                const logDate = log.timestamp?.toDate ? log.timestamp.toDate().toISOString().split('T')[0] : '';
+                return logDate === today;
+            });
+            document.getElementById('todayCount').textContent = todayLogs.length;
+            document.getElementById('totalCount').textContent = allLogs.length;
+            document.getElementById('userCount').textContent = allUsers.length;
+        }
+        
+        function renderLogs() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allLogs.filter(log => 
+                log.userName?.toLowerCase().includes(searchTerm) ||
+                log.reason?.toLowerCase().includes(searchTerm)
+            );
+            
+            const tbody = document.getElementById('tableBody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">No logs found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filtered.map(log => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm">${formatDate(log.timestamp)}</td>
+                    <td class="px-6 py-4 font-medium text-blue-900">${escapeHtml(log.userName) || 'Guest'}</td>
+                    <td class="px-6 py-4">${escapeHtml(log.reason) || '-'}</td>
+                    <td class="px-6 py-4">${escapeHtml(log.userRole) || 'Visitor'}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function renderUsers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allUsers.filter(user => 
+                user.fullName?.toLowerCase().includes(searchTerm) ||
+                user.email?.toLowerCase().includes(searchTerm)
+            );
+            
+            const tbody = document.getElementById('tableBody');
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">No users found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filtered.map(user => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm">${escapeHtml(user.studentId) || '—'}</td>
+                    <td class="px-6 py-4 font-medium text-blue-900">${escapeHtml(user.fullName) || '—'}</td>
+                    <td class="px-6 py-4">${escapeHtml(user.department) || '—'}</td>
+                    <td class="px-6 py-4"><span class="bg-yellow-100 text-blue-900 px-2 py-1 rounded-full text-xs font-semibold">${escapeHtml(user.role) || '—'}</span></td>
+                </tr>
+            `).join('');
+        }
+        
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
+        // Real-time listeners
+        if (db) {
+            db.collection('visitorLogs').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+                allLogs = [];
+                snapshot.forEach(doc => allLogs.push({ id: doc.id, ...doc.data() }));
+                if (currentView === 'logs') {
+                    renderLogs();
+                    updateStats();
+                }
+            });
+            
+            db.collection('users').onSnapshot(snapshot => {
+                allUsers = [];
+                snapshot.forEach(doc => allUsers.push({ id: doc.id, ...doc.data() }));
+                if (currentView === 'users') {
+                    renderUsers();
+                }
+                updateStats();
+            });
+        }
+        
+        // Tab switching
+        document.getElementById('logsTab').onclick = () => {
+            currentView = 'logs';
+            document.getElementById('pageTitle').textContent = 'Visitor Check-In Logs';
+            document.getElementById('tableHeader').innerHTML = `
+                <th class="px-6 py-3 text-left">Time</th>
+                <th class="px-6 py-3 text-left">Name</th>
+                <th class="px-6 py-3 text-left">Reason</th>
+                <th class="px-6 py-3 text-left">Role</th>
+            `;
+            document.getElementById('searchInput').value = '';
+            renderLogs();
+        };
+        
+        document.getElementById('usersTab').onclick = () => {
+            currentView = 'users';
+            document.getElementById('pageTitle').textContent = 'Registered Users';
+            document.getElementById('tableHeader').innerHTML = `
+                <th class="px-6 py-3 text-left">Student ID</th>
+                <th class="px-6 py-3 text-left">Full Name</th>
+                <th class="px-6 py-3 text-left">Department</th>
+                <th class="px-6 py-3 text-left">Role</th>
+            `;
+            document.getElementById('searchInput').value = '';
+            renderUsers();
+        };
+        
+        document.getElementById('searchInput').addEventListener('input', () => {
+            if (currentView === 'logs') renderLogs();
+            else renderUsers();
+        });
+        
+        document.getElementById('switchKioskBtn').onclick = () => window.location.href = 'kiosk.html';
+        document.getElementById('logoutBtn').onclick = async () => {
+            await firebase.auth().signOut();
+            localStorage.clear();
+            window.location.href = 'index.html';
+        };
+        
+        // Check authentication and admin access
+        firebase.auth().onAuthStateChanged((user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Check if user is admin
+            db.collection('users').doc(user.uid).get().then((userDoc) => {
+                const isAdmin = userDoc.exists ? userDoc.data().isAdmin : false;
+                if (!isAdmin) {
+                    alert('Admin access only. Redirecting to kiosk...');
+                    window.location.href = 'kiosk.html';
+                }
+            }).catch((error) => {
+                console.error('Error checking admin status:', error);
+            });
+        });
+    </script>
+</body>
+</html>

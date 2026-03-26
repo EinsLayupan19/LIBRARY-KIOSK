@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Kiosk - NEU Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        .bg-overlay {
+            background: linear-gradient(rgba(10, 47, 108, 0.85), rgba(10, 47, 108, 0.85)), 
+                        url('https://smapse.com/storage/2020/05/converted/825_585_6-51.jpg') center/cover no-repeat;
+        }
+    </style>
+</head>
+<body class="bg-overlay min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
+        <img src="https://neu.edu.ph/main/img/neu.png" alt="NEU Logo" class="h-16 mx-auto mb-4">
+        <div class="text-center border-b pb-4 mb-6">
+            <h1 class="text-3xl font-bold text-blue-900">Visitor Check-In</h1>
+            <p class="text-gray-500">Please select your purpose of visit</p>
+        </div>
+        
+        <div class="space-y-6">
+            <select id="reason" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:border-yellow-400 focus:outline-none">
+                <option value="Borrow Books">📖 Borrow Books</option>
+                <option value="Study/Research">📝 Study / Research</option>
+                <option value="Return Books">🔄 Return Books</option>
+                <option value="Library Tour">🏛️ Library Tour</option>
+                <option value="Meeting with Staff">🤝 Meeting with Staff</option>
+                <option value="Other">✨ Other Purpose</option>
+            </select>
+            
+            <button id="checkinBtn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-4 rounded-xl text-2xl transition">
+                ✔ CHECK IN
+            </button>
+        </div>
+        
+        <div id="message" class="mt-6 text-center text-sm font-medium hidden p-3 rounded-lg"></div>
+        
+        <button id="logoutBtn" class="w-full mt-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 rounded-lg transition">
+            Sign Out
+        </button>
+        
+        <div id="countdownTimer" class="mt-3 text-center text-xs text-gray-400 hidden"></div>
+    </div>
+    
+    <script>
+        let logoutTimer = null;
+        const CHECKIN_LOGOUT_DELAY = 3000; // 3 seconds
+        
+        const checkinBtn = document.getElementById('checkinBtn');
+        const reasonSelect = document.getElementById('reason');
+        const messageDiv = document.getElementById('message');
+        const countdownDiv = document.getElementById('countdownTimer');
+        
+        function showMessage(msg, isError = false) {
+            messageDiv.textContent = msg;
+            messageDiv.className = `mt-6 text-center text-sm font-medium p-3 rounded-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+            setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+        }
+        
+        function startLogoutTimer() {
+            // Clear any existing timer
+            if (logoutTimer) clearTimeout(logoutTimer);
+            
+            let secondsLeft = 3;
+            countdownDiv.classList.remove('hidden');
+            countdownDiv.innerHTML = `Auto logout in ${secondsLeft} seconds...`;
+            
+            const interval = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft >= 0) {
+                    countdownDiv.innerHTML = `Auto logout in ${secondsLeft} seconds...`;
+                }
+                if (secondsLeft <= 0) {
+                    clearInterval(interval);
+                }
+            }, 1000);
+            
+            logoutTimer = setTimeout(async () => {
+                countdownDiv.classList.add('hidden');
+                await firebase.auth().signOut();
+                localStorage.clear();
+                window.location.href = 'index.html';
+            }, CHECKIN_LOGOUT_DELAY);
+        }
+        
+        checkinBtn.onclick = async () => {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            try {
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                const userName = userDoc.exists ? userDoc.data().fullName : user.displayName || 'Guest';
+                const userRole = userDoc.exists ? userDoc.data().role : 'Visitor';
+                const isAdmin = userDoc.exists ? userDoc.data().isAdmin : false;
+                
+                await db.collection('visitorLogs').add({
+                    userName: userName,
+                    userRole: userRole,
+                    reason: reasonSelect.value,
+                    timestamp: new Date(),
+                    userId: user.uid,
+                    email: user.email,
+                    isAdmin: isAdmin
+                });
+                
+                showMessage(`✅ Check-in successful! Welcome, ${userName}.`, false);
+                reasonSelect.value = "Borrow Books";
+                
+                // Start 3-second auto logout timer
+                startLogoutTimer();
+                
+            } catch (error) {
+                showMessage('❌ Check-in failed: ' + error.message, true);
+            }
+        };
+        
+        document.getElementById('logoutBtn').onclick = async () => {
+            if (logoutTimer) clearTimeout(logoutTimer);
+            await firebase.auth().signOut();
+            localStorage.clear();
+            window.location.href = 'index.html';
+        };
+        
+        firebase.auth().onAuthStateChanged(user => {
+            if (!user) {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
+</body>
+</html>

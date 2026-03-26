@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+    }
+    
+    // Visitor logs - anyone signed in can read/write
+    match /visitorLogs/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // For development only - remove these later for production
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
