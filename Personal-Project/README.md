@@ -13,7 +13,7 @@ neu-library/
 ├── styles.css          ← All styles
 └── supabase_setup.sql  ← Run in Supabase SQL Editor
 ```
-
+https://ephemeral-faun-049a4d.netlify.app/
 ---
 
 ## 🚀 Step-by-Step Setup
